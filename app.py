@@ -13,13 +13,24 @@ GHOSTWALL_API_KEY = "test123"
 @app.route('/', defaults={'path': ''}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 @app.route('/<path:path>', methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 def proxy(path):
+    ip = request.remote_addr
+    headers = dict(request.headers)
+
     data = {
         "api_key": GHOSTWALL_API_KEY,
-        "user_agent": request.headers.get('User-Agent', '')
+        "user_agent": headers.get('User-Agent', ''),
+        "ip": ip,
+        "accept": headers.get('Accept', ''),
+        "accept_encoding": headers.get('Accept-Encoding', ''),
+        "accept_language": headers.get('Accept-Language', ''),
+        "connection": headers.get('Connection', ''),
+        "referer": headers.get('Referer', ''),
+        "cookies": dict(request.cookies),
+        "headers": headers
     }
 
     critical_headers = ['user-agent', 'accept-language', 'accept', 'referer', 'cookie']
-    headers_to_forward = {h: request.headers[h] for h in critical_headers if h in request.headers}
+    headers_to_forward = {h: headers[h] for h in critical_headers if h in headers}
 
     try:
         resp = requests.post(GHOSTWALL_API_CHECK_URL, json=data, headers=headers_to_forward, timeout=5)
@@ -33,7 +44,7 @@ def proxy(path):
         return Response("Access denied: Bot detected", status=403)
 
     url = f"{CLIENT_ORIGIN}/{path}"
-    forward_headers = {k: v for k, v in request.headers.items() if k.lower() != 'host'}
+    forward_headers = {k: v for k, v in headers.items() if k.lower() != 'host'}
 
     proxied_resp = requests.request(
         method=request.method,
