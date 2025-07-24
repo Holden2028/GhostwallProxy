@@ -25,10 +25,6 @@ def proxy(path):
     ip = request.remote_addr
     user_agent = request.headers.get('User-Agent', '')
 
-    # Forward a few important headers
-    critical_headers = ['user-agent', 'accept-language', 'accept', 'referer', 'cookie']
-    headers_to_forward = {h: request.headers[h] for h in critical_headers if h in request.headers}
-
     # Determine detection behavior
     ip_known = ip in executed_js_ips
     is_initial_html = request.method == "GET" and path == ""
@@ -45,6 +41,10 @@ def proxy(path):
     if is_initial_html and not ip_known:
         data["log_only"] = True
 
+    # Forward a few important headers
+    critical_headers = ['user-agent', 'accept-language', 'accept', 'referer', 'cookie']
+    headers_to_forward = {h: request.headers[h] for h in critical_headers if h in request.headers}
+
     # Send detection/logging to GhostWall API
     try:
         resp = requests.post(GHOSTWALL_API_CHECK_URL, json=data, headers=headers_to_forward, timeout=5)
@@ -54,10 +54,11 @@ def proxy(path):
     except Exception:
         visitor_type = "human"
 
+    # Block bots if detection ran and result is "bot"
     if should_detect and visitor_type == "bot":
         return Response("Access denied: Bot detected", status=403)
 
-    # Build the proxied request
+    # Build the proxied request to the client site
     url = f"{CLIENT_ORIGIN}/{path}"
     forward_headers = {k: v for k, v in request.headers.items() if k.lower() != 'host'}
 
@@ -70,7 +71,7 @@ def proxy(path):
         allow_redirects=False
     )
 
-    # Inject JS if the response is HTML
+    # Inject JS into HTML pages
     content_type = proxied_resp.headers.get("Content-Type", "")
     content = proxied_resp.content
     if "text/html" in content_type.lower():
@@ -91,7 +92,7 @@ def proxy(path):
                 html += injection
             content = html.encode("utf-8")
         except Exception:
-            pass  # Skip if decoding fails
+            pass  # Skip injection if decoding fails
 
     # Return filtered headers
     excluded_headers = ['content-length', 'transfer-encoding', 'connection']
