@@ -4,7 +4,7 @@ from flask import Flask, request, Response
 app = Flask(__name__)
 
 # Hardcoded client backend URL
-CLIENT_ORIGIN = "https://www.a-space.space"  # Replace with your actual client site
+CLIENT_ORIGIN = "https://ghostwall.onrender.com/"  # Replace with your actual client site
 
 # Your GhostWall API bot detection endpoint and API key
 GHOSTWALL_API_CHECK_URL = "https://ghostwallapi.onrender.com/check"
