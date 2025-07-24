@@ -29,18 +29,21 @@ def proxy(path):
     critical_headers = ['user-agent', 'accept-language', 'accept', 'referer', 'cookie']
     headers_to_forward = {h: request.headers[h] for h in critical_headers if h in request.headers}
 
+    # Determine detection behavior
+    ip_known = ip in executed_js_ips
+    is_initial_html = request.method == "GET" and path == ""
+    should_detect = not is_initial_html or ip_known
+
     # Build detection/logging payload
     data = {
         "api_key": GHOSTWALL_API_KEY,
         "user_agent": user_agent,
         "ip": ip,
-        "js_passed": ip in executed_js_ips
+        "js_passed": ip_known
     }
 
-    # If this is just the initial page load (GET /), skip detection but still log
-    is_initial_html = request.method == "GET" and path == ""
-    if is_initial_html:
-        data["log_only"] = True  # Inform API to log only
+    if is_initial_html and not ip_known:
+        data["log_only"] = True
 
     # Send detection/logging to GhostWall API
     try:
@@ -51,8 +54,7 @@ def proxy(path):
     except Exception:
         visitor_type = "human"
 
-    # Block only if actual detection was run
-    if not is_initial_html and visitor_type == "bot":
+    if should_detect and visitor_type == "bot":
         return Response("Access denied: Bot detected", status=403)
 
     # Build the proxied request
