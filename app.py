@@ -4,7 +4,7 @@ from flask import Flask, request, Response
 app = Flask(__name__)
 
 # Hardcoded client backend URL
-CLIENT_ORIGIN = "https://client-real-site.com"  # Replace with your actual client site
+CLIENT_ORIGIN = "https://www.a-space.space"  # Replace with your actual client site
 
 # Your GhostWall API bot detection endpoint and API key
 GHOSTWALL_API_CHECK_URL = "https://ghostwallapi.onrender.com/check"
@@ -13,14 +13,28 @@ GHOSTWALL_API_KEY = "test123"  # Replace with your valid API key
 @app.route('/', defaults={'path': ''}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 @app.route('/<path:path>', methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 def proxy(path):
-    # Prepare data for GhostWall API check
+    # Prepare JSON body for GhostWall API check
     data = {
         "api_key": GHOSTWALL_API_KEY,
         "user_agent": request.headers.get('User-Agent', '')
     }
-    # Call GhostWall API to detect bot
+
+    # Prepare headers to forward to GhostWall API detection
+    headers_to_forward = {}
+    # List critical browser headers to forward
+    critical_headers = ['user-agent', 'accept-language', 'accept', 'referer', 'cookie']
+    for header_name in critical_headers:
+        if header_name in request.headers:
+            headers_to_forward[header_name] = request.headers[header_name]
+
+    # Call GhostWall API to detect bot with forwarded headers
     try:
-        resp = requests.post(GHOSTWALL_API_CHECK_URL, json=data, timeout=5)
+        resp = requests.post(
+            GHOSTWALL_API_CHECK_URL,
+            json=data,
+            headers=headers_to_forward,
+            timeout=5
+        )
         resp.raise_for_status()
         result = resp.json()
         visitor_type = result.get("result", "human")
@@ -42,6 +56,7 @@ def proxy(path):
         allow_redirects=False
     )
 
+    # Filter out hop-by-hop headers
     excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
     headers = [(name, value) for (name, value) in proxied_resp.headers.items() if name.lower() not in excluded_headers]
 
